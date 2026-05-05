@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_MachineBase" Id="{BF3086BA-ED31-4A3A-836D-79D09F97EABA}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_MachineBase — Top-level machine coordinator
+// Coordinates motors, conveyors, and cutting unit into one machine
+// Extend this FB for your specific machine configuration
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_MachineBase EXTENDS FB_StateMachine
+VAR_INPUT
+    bStartMachine       : BOOL;     // Start full auto cycle
+    bStopMachine        : BOOL;     // Stop gracefully
+    bEStop              : BOOL;     // Emergency stop (immediate)
+    bAcknowledge        : BOOL;     // Acknowledge errors
+END_VAR
+VAR_OUTPUT
+    bAutoActive         : BOOL;     // Automatic cycle running
+    bReadyToStart       : BOOL;     // All axes ready, can start
+    bEStopActive        : BOOL;     // E-Stop is active
+END_VAR
+VAR
+    fbErrorHandler      : FB_ErrorHandler;
+    bEStopOld           : BOOL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[SUPER^.Execute();
+
+// ── Emergency stop (highest priority) ─────────────────────────────────────
+bEStopActive := bEStop;
+IF bEStop AND NOT bEStopOld THEN
+    eState := E_MachineState.EStop;
+    fbErrorHandler.AddError(
+        nCode       := GVL_ErrorCodes.MACHINE_ESTOP_ACTIVE,
+        eSeverity   := E_Severity.Fatal,
+        sMessage    := 'Emergency stop activated',
+        sSource     := 'FB_MachineBase');
+END_IF
+bEStopOld := bEStop;
+
+// ── Main machine state machine ─────────────────────────────────────────────
+CASE eState OF
+
+    E_MachineState.Init:
+        bAutoActive    := FALSE;
+        bReadyToStart  := FALSE;
+        // Derived class handles initialisation via OnStateEnter
+        IF bEnable THEN
+            eState := E_MachineState.Idle;
+        END_IF
+
+    E_MachineState.Idle:
+        bAutoActive   := FALSE;
+        bReadyToStart := TRUE;
+        IF bStartMachine AND NOT bStopMachine AND NOT bEStop THEN
+            eState := E_MachineState.Running;
+        END_IF
+
+    E_MachineState.Running:
+        bAutoActive   := TRUE;
+        bReadyToStart := FALSE;
+        IF bStopMachine OR NOT bEnable THEN
+            eState := E_MachineState.Paused;
+        ELSIF fbErrorHandler.HasFatal() THEN
+            eState := E_MachineState.Error;
+        END_IF
+
+    E_MachineState.Paused:
+        bAutoActive := FALSE;
+        IF NOT bStopMachine AND bStartMachine THEN
+            eState := E_MachineState.Running;
+        END_IF
+
+    E_MachineState.Error:
+        bAutoActive := FALSE;
+        IF bAcknowledge THEN
+            fbErrorHandler.ClearErrors();
+            ClearError();
+            eState := E_MachineState.Idle;
+        END_IF
+
+    E_MachineState.EStop:
+        bAutoActive := FALSE;
+        IF NOT bEStop AND bAcknowledge THEN
+            fbErrorHandler.ClearErrors();
+            eState := E_MachineState.Idle;
+        END_IF
+
+    E_MachineState.Disabled:
+        bAutoActive   := FALSE;
+        bReadyToStart := FALSE;
+
+END_CASE
+
+// ── Run error handler ──────────────────────────────────────────────────────
+fbErrorHandler(bClearAll := FALSE, bAcknowledge := bAcknowledge);]]></ST></Implementation>
+  </POU>
+</TcPlcObject>

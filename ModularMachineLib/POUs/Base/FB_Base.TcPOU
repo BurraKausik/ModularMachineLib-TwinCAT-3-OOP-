@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Base" Id="{B0C902F1-ECE0-491D-B5C5-3E84FF4BE80A}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_Base — Abstract base class for all ModularMachineLib function blocks
+// Inherit from this block using EXTENDS FB_Base
+// Call SUPER^.Execute() as the first line of the derived FB body
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_Base
+VAR_INPUT
+    bEnable         : BOOL;     // TRUE = module enabled and running
+    bReset          : BOOL;     // Rising edge clears error state
+END_VAR
+VAR_OUTPUT
+    bError          : BOOL;     // TRUE if error is active
+    nErrorCode      : UDINT;    // Active error code (0 = no error)
+    sErrorMsg       : STRING(255); // Human-readable error description
+END_VAR
+VAR
+    bResetOld       : BOOL;     // Edge detection for bReset
+    bInitDone       : BOOL;     // First-scan initialisation flag
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// ── First scan initialisation ──────────────────────────────────────────────
+IF NOT bInitDone THEN
+    bInitDone := TRUE;
+    OnInit(); // Call virtual init method
+END_IF
+
+// ── Reset on rising edge ───────────────────────────────────────────────────
+IF bReset AND NOT bResetOld THEN
+    bError      := FALSE;
+    nErrorCode  := GVL_ErrorCodes.NO_ERROR;
+    sErrorMsg   := '';
+    OnReset(); // Allow derived class to handle reset
+END_IF
+bResetOld := bReset;]]></ST></Implementation>
+  <Method Name="OnInit" Id="{098092F9-A2FF-4DBF-B128-A50861BF1445}">
+    <Declaration><![CDATA[METHOD PROTECTED OnInit
+VAR_INPUT
+END_VAR
+// Override in derived class for first-scan initialisation]]></Declaration>
+    <Implementation><ST><![CDATA[// Base implementation: no action]]></ST></Implementation>
+  </Method>
+  <Method Name="OnReset" Id="{CD0F2E79-5C5C-4900-9D2B-1DA58A121D8D}">
+    <Declaration><![CDATA[METHOD PROTECTED OnReset
+VAR_INPUT
+END_VAR
+// Override in derived class to handle reset logic]]></Declaration>
+    <Implementation><ST><![CDATA[// Base implementation: no action]]></ST></Implementation>
+  </Method>
+  <Method Name="SetError" Id="{7794D543-B3B6-4BEF-A96C-7447BEE5FAF8}">
+    <Declaration><![CDATA[METHOD PROTECTED SetError
+VAR_INPUT
+    nCode    : UDINT;
+    sMessage : STRING(255);
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// Set error state from derived class
+bError      := TRUE;
+nErrorCode  := nCode;
+sErrorMsg   := sMessage;]]></ST></Implementation>
+  </Method>
+  <Method Name="ClearError" Id="{43A34547-CDBE-445E-9A8E-284F6E491EF0}">
+    <Declaration><![CDATA[METHOD PROTECTED ClearError
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[bError     := FALSE;
+nErrorCode := GVL_ErrorCodes.NO_ERROR;
+sErrorMsg  := \'\';]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

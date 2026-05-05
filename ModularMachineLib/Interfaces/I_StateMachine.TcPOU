@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_StateMachine" Id="{771D2387-2A6F-4B86-A72E-6680B5892000}">
+    <Declaration><![CDATA[// Base interface implemented by all state machine function blocks
+INTERFACE I_StateMachine]]></Declaration>
+  <Method Name="Enable" Id="{24E06CAC-4971-43D6-B89C-2E2F02BE2D6C}">
+    <Declaration><![CDATA[METHOD Enable : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="Disable" Id="{DAC7C91C-9890-4FEE-B3BE-2BF9A9938852}">
+    <Declaration><![CDATA[METHOD Disable : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="Reset" Id="{06EA7388-5947-48DE-AF93-F853EBFBE67D}">
+    <Declaration><![CDATA[METHOD Reset : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="GetState" Id="{5BC9DB29-2588-4686-8A24-BC4010D09656}">
+    <Declaration><![CDATA[METHOD GetState : E_MachineState
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="HasError" Id="{3B634A38-C5F7-42A7-A8A5-C91E6189B204}">
+    <Declaration><![CDATA[METHOD HasError : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="GetErrorCode" Id="{17968446-ED7D-4A77-9F79-2228FE0EEBC0}">
+    <Declaration><![CDATA[METHOD GetErrorCode : UDINT
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  </Itf>
+</TcPlcObject>

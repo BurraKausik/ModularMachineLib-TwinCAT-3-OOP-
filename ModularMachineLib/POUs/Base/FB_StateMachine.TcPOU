@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_StateMachine" Id="{879C841E-3BC4-4E3B-B44B-DA788818CF72}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_StateMachine — Generic state machine base, extends FB_Base
+// Implements I_StateMachine interface
+// Derive your module FBs from this block using EXTENDS FB_StateMachine
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_StateMachine EXTENDS FB_Base IMPLEMENTS I_StateMachine
+VAR_INPUT
+END_VAR
+VAR_OUTPUT
+    eState          : E_MachineState;   // Current machine state (public)
+END_VAR
+VAR
+    eStateLast      : E_MachineState;   // Previous state (for OnStateChange detection)
+    tStateTimer     : TON;              // General-purpose state dwell timer
+    bStateChanged   : BOOL;            // TRUE for one cycle after state change
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// ── Call base class ────────────────────────────────────────────────────────
+SUPER^.Execute();
+
+// ── Detect state transitions ───────────────────────────────────────────────
+bStateChanged := (eState <> eStateLast);
+IF bStateChanged THEN
+    OnStateExit(eStateLast);
+    OnStateEnter(eState);
+    tStateTimer(IN := FALSE); // Reset state timer on every transition
+END_IF
+eStateLast := eState;
+
+// ── Run state timer ────────────────────────────────────────────────────────
+tStateTimer(IN := TRUE);
+
+// ── Handle disable ─────────────────────────────────────────────────────────
+IF NOT bEnable AND eState <> E_MachineState.Disabled THEN
+    eState := E_MachineState.Disabled;
+END_IF]]></ST></Implementation>
+  <Method Name="Execute" Id="{7350475A-3C42-4D1A-8986-D7DB6E928EA4}">
+    <Declaration><![CDATA[METHOD Execute
+VAR_INPUT
+END_VAR
+// Call cyclically from derived FB body: SUPER^.Execute();]]></Declaration>
+    <Implementation><ST><![CDATA[// Implemented in body above — this method exists for interface compliance]]></ST></Implementation>
+  </Method>
+  <Method Name="Enable" Id="{6D60FECF-7128-4C81-BAD5-9F7718347219}">
+    <Declaration><![CDATA[METHOD Enable : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IF eState = E_MachineState.Disabled THEN
+    eState  := E_MachineState.Idle;
+    Enable  := TRUE;
+END_IF]]></ST></Implementation>
+  </Method>
+  <Method Name="Disable" Id="{A60066B7-7D7F-4932-880F-146D3471A5D9}">
+    <Declaration><![CDATA[METHOD Disable : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[eState  := E_MachineState.Disabled;
+Disable := TRUE;]]></ST></Implementation>
+  </Method>
+  <Method Name="Reset" Id="{9E55B2A2-8BEF-4386-BF83-A5BE27A428CA}">
+    <Declaration><![CDATA[METHOD Reset : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IF eState = E_MachineState.Error THEN
+    SUPER^.ClearError();
+    eState := E_MachineState.Idle;
+    Reset  := TRUE;
+END_IF]]></ST></Implementation>
+  </Method>
+  <Method Name="GetState" Id="{933FC807-BFEE-4E5E-BCD6-8DC8D8EF39F6}">
+    <Declaration><![CDATA[METHOD GetState : E_MachineState
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetState := eState;]]></ST></Implementation>
+  </Method>
+  <Method Name="HasError" Id="{174FEAB4-5A50-4136-8EF3-8359677726DA}">
+    <Declaration><![CDATA[METHOD HasError : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[HasError := bError;]]></ST></Implementation>
+  </Method>
+  <Method Name="GetErrorCode" Id="{6EFA58FA-E95B-4429-8EEC-2E1CB34DFB82}">
+    <Declaration><![CDATA[METHOD GetErrorCode : UDINT
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetErrorCode := nErrorCode;]]></ST></Implementation>
+  </Method>
+  <Method Name="OnStateEnter" Id="{79B764DC-4E47-4713-903B-3A751B95BBD7}">
+    <Declaration><![CDATA[METHOD PROTECTED OnStateEnter
+VAR_INPUT
+    eNewState : E_MachineState;
+END_VAR
+// Override to execute logic on state entry]]></Declaration>
+    <Implementation><ST><![CDATA[// Base: no action]]></ST></Implementation>
+  </Method>
+  <Method Name="OnStateExit" Id="{EEF3127F-0FDA-4156-8E17-E7F5FAD1C1A9}">
+    <Declaration><![CDATA[METHOD PROTECTED OnStateExit
+VAR_INPUT
+    eOldState : E_MachineState;
+END_VAR
+// Override to execute logic on state exit]]></Declaration>
+    <Implementation><ST><![CDATA[// Base: no action]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

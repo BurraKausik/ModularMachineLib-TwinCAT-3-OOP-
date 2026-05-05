@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="PRG_ConveyorDemo" Id="{C351392C-D7D3-44D9-B4DC-C37A7322A254}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// PRG_ConveyorDemo — Example: 3-segment conveyor line with cutting station
+// Infeed → Cutting → Outfeed
+// Shows interlocking logic between segments
+// ============================================================================
+PROGRAM PRG_ConveyorDemo
+VAR
+    fbInfeed        : FB_Conveyor;
+    fbOutfeed       : FB_Conveyor;
+    fbCutter        : FB_CuttingUnit;
+
+    stInfeedCfg     : ST_ConveyorConfig := (
+        sName := 'Infeed', fNominalSpeed := 0.5, fMaxSpeed := 1.0,
+        fLength := 2.0, tStartTimeout := T#5S, tStopTimeout := T#5S,
+        tBlockedTimeout := T#15S, bHasSensor := TRUE);
+
+    stOutfeedCfg    : ST_ConveyorConfig := (
+        sName := 'Outfeed', fNominalSpeed := 0.6, fMaxSpeed := 1.2,
+        fLength := 1.5, tStartTimeout := T#5S, tStopTimeout := T#5S,
+        tBlockedTimeout := T#15S, bHasSensor := TRUE);
+
+    stCutterCfg     : ST_CuttingConfig := (
+        sName := 'MainCutter', fCutLength := 500.0,
+        fCutLengthTolerance := 1.0, fBladeSpeed := 150.0,
+        tCutTimeout := T#8S, tHomeTimeout := T#15S,
+        nCutsBeforeService := 100000);
+
+    // System commands
+    bSystemStart    AT %I* : BOOL;
+    bSystemStop     AT %I* : BOOL;
+    bSystemReset    AT %I* : BOOL;
+    bEStop          AT %I* : BOOL;
+
+    // Infeed I/O
+    bInfeed_Run     AT %I* : BOOL;
+    fInfeed_Speed   AT %I* : LREAL;
+    bInfeed_Sensor  AT %I* : BOOL;
+
+    // Outfeed I/O
+    bOutfeed_Run    AT %I* : BOOL;
+    fOutfeed_Speed  AT %I* : LREAL;
+    bOutfeed_Sensor AT %I* : BOOL;
+    bOutfeed_Free   AT %I* : BOOL;
+
+    // Cutter I/O
+    fCutter_Pos     AT %I* : LREAL;
+    bCutter_AtHome  AT %I* : BOOL;
+    bCutter_AtCut   AT %I* : BOOL;
+
+    // Outputs
+    bInfeed_RunCmd  AT %Q* : BOOL;
+    fInfeed_SpCmd   AT %Q* : LREAL;
+    bOutfeed_RunCmd AT %Q* : BOOL;
+    fOutfeed_SpCmd  AT %Q* : LREAL;
+    fCutter_SpCmd   AT %Q* : LREAL;
+    bCutter_RunCmd  AT %Q* : BOOL;
+
+    // Interlocking logic
+    bCutterReady    : BOOL;
+    bStartCutCycle  : BOOL;
+    bSystemOk       : BOOL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[bSystemOk := NOT bEStop AND bSystemStart AND NOT bSystemStop;
+
+// ── Outfeed conveyor (start first — pull material through) ─────────────────
+fbOutfeed(
+    bEnable             := bSystemOk,
+    bReset              := bSystemReset,
+    bStart              := bSystemOk,
+    bStop               := NOT bSystemOk,
+    fSetSpeed           := 0.0,
+    bBeltRunFeedback    := bOutfeed_Run,
+    fActSpeed           := fOutfeed_Speed,
+    bProductSensor      := bOutfeed_Sensor,
+    bDownstreamFree     := bOutfeed_Free,
+    stConfig            := stOutfeedCfg,
+    bRunCmd             => bOutfeed_RunCmd,
+    fSpeedCmd           => fOutfeed_SpCmd
+);
+
+// ── Cutting unit ───────────────────────────────────────────────────────────
+bCutterReady := fbCutter.bReadyForCycle;
+// Trigger cut when infeed product sensor is active and cutter is ready
+bStartCutCycle := bInfeed_Sensor AND bCutterReady AND fbOutfeed.bRunning;
+
+fbCutter(
+    bEnable             := bSystemOk,
+    bReset              := bSystemReset,
+    bStartCycle         := bStartCutCycle,
+    bAbort              := NOT bSystemOk,
+    fActPosition        := fCutter_Pos,
+    bBladeAtHome        := bCutter_AtHome,
+    bBladeAtCutPos      := bCutter_AtCut,
+    bMaterialPresent    := bInfeed_Sensor,
+    stConfig            := stCutterCfg,
+    fBladeSpeedCmd      => fCutter_SpCmd,
+    bBladeRunCmd        => bCutter_RunCmd
+);
+
+// ── Infeed conveyor (interlocked with cutter — stop when cutter active) ────
+fbInfeed(
+    bEnable             := bSystemOk,
+    bReset              := bSystemReset,
+    bStart              := bSystemOk AND NOT fbCutter.bCycleActive,
+    bStop               := NOT bSystemOk OR fbCutter.bCycleActive,
+    fSetSpeed           := 0.0,
+    bBeltRunFeedback    := bInfeed_Run,
+    fActSpeed           := fInfeed_Speed,
+    bProductSensor      := bInfeed_Sensor,
+    bDownstreamFree     := bCutterReady,
+    stConfig            := stInfeedCfg,
+    bRunCmd             => bInfeed_RunCmd,
+    fSpeedCmd           => fInfeed_SpCmd
+);]]></ST></Implementation>
+  </POU>
+</TcPlcObject>

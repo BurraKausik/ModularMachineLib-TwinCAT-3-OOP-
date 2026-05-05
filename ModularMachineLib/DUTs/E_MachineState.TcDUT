@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="E_MachineState" Id="{12683CCB-7F4F-4965-B053-596EB5915A1B}">
+    <Declaration><![CDATA[
+{attribute 'qualified_only'}
+{attribute 'strict'}
+// Generic machine / module operating states
+TYPE E_MachineState :
+(
+    Init        := 0,   // Initialising (first cycle)
+    Idle        := 1,   // Ready, waiting for command
+    Running     := 2,   // Automatic cycle active
+    Paused      := 3,   // Cycle paused (operator)
+    Error       := 4,   // Error — operator action required
+    EStop       := 5,   // Emergency stop active
+    Disabled    := 6    // Module disabled
+) UDINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

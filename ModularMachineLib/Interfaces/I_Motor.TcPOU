@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Motor" Id="{45022258-330C-4C50-A85B-1B53BD811EF5}">
+    <Declaration><![CDATA[// Motor control interface — extends I_StateMachine
+INTERFACE I_Motor EXTENDS I_StateMachine]]></Declaration>
+  <Method Name="Start" Id="{A1D8C5DC-9C7A-40CE-A31A-5DED4FB123D8}">
+    <Declaration><![CDATA[METHOD Start : BOOL
+VAR_INPUT
+    fSpeed : LREAL; // Target speed [rpm]
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="Stop" Id="{7C5FA959-1E81-4DBF-AD15-58CB53596C4A}">
+    <Declaration><![CDATA[METHOD Stop : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="GetSpeed" Id="{09CFA118-EAE7-4472-A985-E94AB2314797}">
+    <Declaration><![CDATA[METHOD GetSpeed : LREAL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="IsRunning" Id="{420633D5-4F5D-4750-A64E-08EB777AE159}">
+    <Declaration><![CDATA[METHOD IsRunning : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="IsStopped" Id="{60E08564-7ABB-4903-A068-A8B16960DDEA}">
+    <Declaration><![CDATA[METHOD IsStopped : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  </Itf>
+</TcPlcObject>

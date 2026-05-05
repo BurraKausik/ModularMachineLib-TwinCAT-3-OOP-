@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Conveyor" Id="{E4046036-9261-4C64-BEDC-CC645B10D032}">
+    <Declaration><![CDATA[// Conveyor control interface — extends I_StateMachine
+INTERFACE I_Conveyor EXTENDS I_StateMachine]]></Declaration>
+  <Method Name="Start" Id="{1D89C373-DDDC-4D17-AB1E-FAC20BBD7008}">
+    <Declaration><![CDATA[METHOD Start : BOOL
+VAR_INPUT
+    fSpeed : LREAL; // Belt speed [m/s], 0 = use nominal
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="Stop" Id="{B456A3D0-11A4-4C26-A41C-01D54898B4DE}">
+    <Declaration><![CDATA[METHOD Stop : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="SetSpeed" Id="{389E1B63-631C-43A5-90B8-E7D833BD1D97}">
+    <Declaration><![CDATA[METHOD SetSpeed : BOOL
+VAR_INPUT
+    fSpeed : LREAL;
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="IsRunning" Id="{6D7A5652-B442-4F3C-BB61-DF49BC684A3D}">
+    <Declaration><![CDATA[METHOD IsRunning : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="IsBlocked" Id="{85E469D6-117C-43DC-A95B-33B38EE99F3D}">
+    <Declaration><![CDATA[METHOD IsBlocked : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="ProductPresent" Id="{3F471449-B745-4E2C-93BC-5FC91285654C}">
+    <Declaration><![CDATA[METHOD ProductPresent : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  </Itf>
+</TcPlcObject>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_MotorConfig" Id="{CA9C379C-468C-4E0F-A7C8-723D2B2C3498}">
+    <Declaration><![CDATA[
+// Configuration structure for FB_Motor
+// Pass via VAR_INPUT at startup or via HMI parameter set
+TYPE ST_MotorConfig :
+STRUCT
+    sName           : STRING(80)    := 'Motor';         // Display name (for diagnostics)
+    fNominalSpeed   : LREAL         := 1500.0;          // Nominal speed [rpm]
+    fMaxSpeed       : LREAL         := 3000.0;          // Hard maximum speed [rpm]
+    fAccelRamp      : LREAL         := 300.0;           // Acceleration ramp [rpm/s]
+    fDecelRamp      : LREAL         := 300.0;           // Deceleration ramp [rpm/s]
+    fSpeedTolerance : LREAL         := 0.05;            // Speed reached tolerance [0..1] (5%)
+    tStartTimeout   : TIME          := T#10S;           // Max time to reach setpoint
+    tStopTimeout    : TIME          := T#10S;           // Max time to reach standstill
+    bInvertDir      : BOOL          := FALSE;           // Invert direction output
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

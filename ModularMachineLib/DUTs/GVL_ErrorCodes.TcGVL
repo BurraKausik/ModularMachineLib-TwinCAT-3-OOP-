@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="GVL_ErrorCodes" Id="{F13578D0-B4B8-4FE6-8723-0D963CE39966}">
+    <Declaration><![CDATA[
+// ============================================================================
+// Global error code constants for the ModularMachineLib
+// Range:   0       = No error
+//          1000-1999 Motor errors
+//          2000-2999 Conveyor errors
+//          3000-3999 Cutting unit errors
+//          9000-9999 Machine-level errors
+// ============================================================================
+VAR_GLOBAL CONSTANT
+
+    // ── No error ─────────────────────────────────────────────────────────────
+    NO_ERROR                    : UDINT := 0;
+
+    // ── Motor errors (1000–1999) ──────────────────────────────────────────────
+    MOTOR_START_TIMEOUT         : UDINT := 1001; // Motor did not reach speed in time
+    MOTOR_STOP_TIMEOUT          : UDINT := 1002; // Motor did not stop in time
+    MOTOR_FEEDBACK_LOST         : UDINT := 1003; // Speed feedback signal lost
+    MOTOR_OVERTEMPERATURE       : UDINT := 1004; // Motor temperature exceeded limit
+    MOTOR_OVERCURRENT           : UDINT := 1005; // Motor current exceeded limit
+    MOTOR_DRIVE_ERROR           : UDINT := 1010; // Drive/inverter reported error
+
+    // ── Conveyor errors (2000–2999) ───────────────────────────────────────────
+    CONV_START_TIMEOUT          : UDINT := 2001; // Belt did not reach speed in time
+    CONV_STOP_TIMEOUT           : UDINT := 2002; // Belt did not stop in time
+    CONV_BLOCKED_TIMEOUT        : UDINT := 2003; // Downstream blocked too long
+    CONV_BELT_SLIP              : UDINT := 2004; // Belt slip detected
+    CONV_SENSOR_FAULT           : UDINT := 2005; // Product sensor fault
+
+    // ── Cutting unit errors (3000–3999) ──────────────────────────────────────
+    CUT_HOME_TIMEOUT            : UDINT := 3001; // Homing did not complete in time
+    CUT_CYCLE_TIMEOUT           : UDINT := 3002; // Cut cycle did not complete in time
+    CUT_LENGTH_DEVIATION        : UDINT := 3003; // Cut length out of tolerance
+    CUT_BLADE_HOME_SENSOR       : UDINT := 3004; // Blade home sensor fault
+    CUT_SERVICE_DUE             : UDINT := 3010; // Service interval reached
+
+    // ── Machine-level errors (9000–9999) ─────────────────────────────────────
+    MACHINE_ESTOP_ACTIVE        : UDINT := 9001; // Emergency stop pressed
+    MACHINE_INIT_FAILED         : UDINT := 9002; // Initialisation failed
+    MACHINE_SAFETY_FAULT        : UDINT := 9003; // Safety system fault
+
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

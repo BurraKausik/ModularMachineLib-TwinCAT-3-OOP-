@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Motor" Id="{C9B67C7F-C4D1-4C75-9D40-D0CAC6A7FF4C}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_Motor — Motor control with full state machine
+// Extends FB_StateMachine | Implements I_Motor
+//
+// Usage:
+//   fbMotor(bEnable:=bEnabled, bStart:=bStartCmd, bStop:=bStopCmd,
+//           fSetSpeed:=fSpeedSP, bMotorRun:=bDriveFeedback,
+//           fActSpeed:=fDriveSpeed, stConfig:=stMotorCfg);
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_Motor EXTENDS FB_StateMachine IMPLEMENTS I_Motor
+VAR_INPUT
+    bStart          : BOOL;             // Start command (level)
+    bStop           : BOOL;             // Stop command (level, overrides start)
+    fSetSpeed       : LREAL;            // Speed setpoint [rpm]
+    bMotorRun       : BOOL;             // Drive "running" feedback signal
+    fActSpeed       : LREAL;            // Actual speed from drive [rpm]
+    bOvertemp       : BOOL;             // Motor overtemperature input
+    bDriveError     : BOOL;             // Drive/inverter error input
+    stConfig        : ST_MotorConfig;   // Configuration (typically constant)
+END_VAR
+VAR_OUTPUT
+    bRunCmd         : BOOL;             // Run output to drive
+    fSpeedCmd       : LREAL;            // Speed command to drive [rpm]
+    bRunning        : BOOL;             // Motor is running at setpoint
+    bStopped        : BOOL;             // Motor is at standstill
+    eMotorState     : E_MotorState;     // Detailed motor state
+END_VAR
+VAR
+    tonStart        : TON;
+    tonStop         : TON;
+    fTargetSpeed    : LREAL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// ── Base class ─────────────────────────────────────────────────────────────
+SUPER^.Execute();
+
+// ── Hardware fault monitoring (any state) ──────────────────────────────────
+IF bEnable THEN
+    IF bOvertemp THEN
+        SetError(GVL_ErrorCodes.MOTOR_OVERTEMPERATURE, 'Motor overtemperature');
+        eMotorState := E_MotorState.Error;
+    ELSIF bDriveError AND eMotorState <> E_MotorState.Idle THEN
+        SetError(GVL_ErrorCodes.MOTOR_DRIVE_ERROR, 'Drive reported error');
+        eMotorState := E_MotorState.Error;
+    END_IF
+END_IF
+
+// ── State machine ──────────────────────────────────────────────────────────
+CASE eMotorState OF
+
+    E_MotorState.Disabled:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        bStopped := TRUE;
+        IF bEnable THEN
+            eMotorState := E_MotorState.Idle;
+        END_IF
+
+    E_MotorState.Idle:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        bStopped := TRUE;
+        ClearError();
+        IF NOT bEnable THEN
+            eMotorState := E_MotorState.Disabled;
+        ELSIF bStart AND NOT bStop THEN
+            fTargetSpeed := SEL(fSetSpeed > 0.0, stConfig.fNominalSpeed,
+                                MIN(fSetSpeed, stConfig.fMaxSpeed));
+            eMotorState  := E_MotorState.Starting;
+        END_IF
+
+    E_MotorState.Starting:
+        bRunCmd    := TRUE;
+        bStopped   := FALSE;
+        fSpeedCmd  := fTargetSpeed;
+        tonStart(IN := TRUE, PT := stConfig.tStartTimeout);
+        IF tonStart.Q THEN
+            tonStart(IN := FALSE);
+            SetError(GVL_ErrorCodes.MOTOR_START_TIMEOUT,
+                     CONCAT('Motor start timeout: ', stConfig.sName));
+            eMotorState := E_MotorState.Error;
+        ELSIF bMotorRun AND
+              ABS(fActSpeed - fTargetSpeed) <= fTargetSpeed * stConfig.fSpeedTolerance THEN
+            tonStart(IN := FALSE);
+            eMotorState := E_MotorState.Running;
+        ELSIF bStop OR NOT bEnable THEN
+            tonStart(IN := FALSE);
+            eMotorState := E_MotorState.Stopping;
+        END_IF
+
+    E_MotorState.Running:
+        bRunCmd  := TRUE;
+        bRunning := TRUE;
+        bStopped := FALSE;
+        fSpeedCmd := fTargetSpeed;
+        IF bStop OR NOT bStart OR NOT bEnable THEN
+            eMotorState := E_MotorState.Stopping;
+        END_IF
+
+    E_MotorState.Stopping:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        fSpeedCmd := 0.0;
+        tonStop(IN := TRUE, PT := stConfig.tStopTimeout);
+        IF tonStop.Q THEN
+            tonStop(IN := FALSE);
+            SetError(GVL_ErrorCodes.MOTOR_STOP_TIMEOUT,
+                     CONCAT('Motor stop timeout: ', stConfig.sName));
+            eMotorState := E_MotorState.Error;
+        ELSIF NOT bMotorRun AND fActSpeed < 1.0 THEN
+            tonStop(IN := FALSE);
+            bStopped    := TRUE;
+            eMotorState := E_MotorState.Idle;
+        END_IF
+
+    E_MotorState.Error:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        IF bReset AND NOT bOvertemp AND NOT bDriveError THEN
+            eMotorState := E_MotorState.Idle;
+        END_IF
+
+END_CASE
+
+// ── Sync base class state ──────────────────────────────────────────────────
+CASE eMotorState OF
+    E_MotorState.Idle:      eState := E_MachineState.Idle;
+    E_MotorState.Starting,
+    E_MotorState.Running:   eState := E_MachineState.Running;
+    E_MotorState.Stopping:  eState := E_MachineState.Paused;
+    E_MotorState.Error:     eState := E_MachineState.Error;
+    E_MotorState.Disabled:  eState := E_MachineState.Disabled;
+END_CASE]]></ST></Implementation>
+  <Method Name="Start" Id="{EB8ECD4E-63BD-4115-93B1-29531F78F61B}">
+    <Declaration><![CDATA[METHOD Start : BOOL
+VAR_INPUT
+    fSpeed : LREAL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[fSetSpeed := fSpeed;
+bStart    := TRUE;
+Start     := (eMotorState = E_MotorState.Running);]]></ST></Implementation>
+  </Method>
+  <Method Name="Stop" Id="{2DE40F82-4758-4643-AFA9-ED8927591903}">
+    <Declaration><![CDATA[METHOD Stop : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[bStop := TRUE;
+bStart := FALSE;
+Stop   := (eMotorState = E_MotorState.Idle);]]></ST></Implementation>
+  </Method>
+  <Method Name="GetSpeed" Id="{25368F78-2A85-45BF-83D7-7A19961B9E7B}">
+    <Declaration><![CDATA[METHOD GetSpeed : LREAL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetSpeed := fActSpeed;]]></ST></Implementation>
+  </Method>
+  <Method Name="IsRunning" Id="{C01E4E5B-D31B-44C9-97B5-7A43D3FC7314}">
+    <Declaration><![CDATA[METHOD IsRunning : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IsRunning := bRunning;]]></ST></Implementation>
+  </Method>
+  <Method Name="IsStopped" Id="{2CF9D4F5-F507-44A8-9AEE-ED47325B2460}">
+    <Declaration><![CDATA[METHOD IsStopped : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IsStopped := bStopped;]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

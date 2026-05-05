@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_ErrorHandler" Id="{C33F4C5A-8249-4BD8-9C15-3B6D08BBE5CC}">
+    <Declaration><![CDATA[// Error handler interface for centralised error management
+INTERFACE I_ErrorHandler]]></Declaration>
+  <Method Name="AddError" Id="{FD059066-C89B-43BC-9822-CBF01243CC9C}">
+    <Declaration><![CDATA[METHOD AddError : BOOL
+VAR_INPUT
+    nCode       : UDINT;
+    eSeverity   : E_Severity;
+    sMessage    : STRING(255);
+    sSource     : STRING(80);
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="ClearErrors" Id="{6E2ED222-D004-4BA9-A419-E0C00512E970}">
+    <Declaration><![CDATA[METHOD ClearErrors : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="HasErrors" Id="{B80923A1-EACE-4688-82E6-10E915CDB62E}">
+    <Declaration><![CDATA[METHOD HasErrors : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="HasFatal" Id="{54C2AE2C-F28A-40AD-B136-485534B4830F}">
+    <Declaration><![CDATA[METHOD HasFatal : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="GetError" Id="{BCBA1513-DD46-4B40-A616-C661CB72B3BD}">
+    <Declaration><![CDATA[METHOD GetError : ST_ErrorInfo
+VAR_INPUT
+    nIndex : UDINT; // 0 = most recent
+END_VAR]]></Declaration>
+  </Method>
+  <Method Name="GetCount" Id="{F3ADEF9E-3EB3-4174-8358-AA6CA6D18C51}">
+    <Declaration><![CDATA[METHOD GetCount : UDINT
+VAR_INPUT
+END_VAR]]></Declaration>
+  </Method>
+  </Itf>
+</TcPlcObject>

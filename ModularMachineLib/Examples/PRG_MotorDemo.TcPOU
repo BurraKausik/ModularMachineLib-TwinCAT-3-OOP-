@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="PRG_MotorDemo" Id="{FFA73851-61C8-462D-9F28-6F24B20B1358}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// PRG_MotorDemo — Example: two motors with independent control
+// Shows typical usage of FB_Motor in a real PLC program
+// ============================================================================
+PROGRAM PRG_MotorDemo
+VAR
+    // Motor instances
+    fbMotor1        : FB_Motor;
+    fbMotor2        : FB_Motor;
+
+    // Configuration (set once at startup or from HMI parameter set)
+    stMotor1Cfg     : ST_MotorConfig := (
+        sName           := 'InfeedMotor',
+        fNominalSpeed   := 1500.0,
+        fMaxSpeed       := 3000.0,
+        fAccelRamp      := 300.0,
+        fDecelRamp      := 300.0,
+        fSpeedTolerance := 0.05,
+        tStartTimeout   := T#10S,
+        tStopTimeout    := T#10S,
+        bInvertDir      := FALSE
+    );
+    stMotor2Cfg     : ST_MotorConfig := (
+        sName           := 'OutfeedMotor',
+        fNominalSpeed   := 1800.0,
+        fMaxSpeed       := 3600.0,
+        fAccelRamp      := 400.0,
+        fDecelRamp      := 400.0,
+        fSpeedTolerance := 0.05,
+        tStartTimeout   := T#10S,
+        tStopTimeout    := T#10S,
+        bInvertDir      := FALSE
+    );
+
+    // --- Inputs (map to hardware in GVL_HW or IO task) ---
+    bStartAll       AT %I* : BOOL;     // Start both motors
+    bStopAll        AT %I* : BOOL;     // Stop both motors
+    bResetAll       AT %I* : BOOL;     // Reset errors
+
+    // Motor 1 hardware I/O
+    bM1_RunFeedback AT %I* : BOOL;
+    fM1_ActSpeed    AT %I* : LREAL;
+    bM1_Overtemp    AT %I* : BOOL;
+    bM1_DriveError  AT %I* : BOOL;
+
+    // Motor 2 hardware I/O
+    bM2_RunFeedback AT %I* : BOOL;
+    fM2_ActSpeed    AT %I* : LREAL;
+    bM2_Overtemp    AT %I* : BOOL;
+    bM2_DriveError  AT %I* : BOOL;
+
+    // --- Outputs ---
+    bM1_RunCmd      AT %Q* : BOOL;
+    fM1_SpeedCmd    AT %Q* : LREAL;
+    bM2_RunCmd      AT %Q* : BOOL;
+    fM2_SpeedCmd    AT %Q* : LREAL;
+
+    // --- HMI / diagnostics ---
+    bAllRunning     : BOOL;
+    bAnyError       : BOOL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// ── Motor 1 ────────────────────────────────────────────────────────────────
+fbMotor1(
+    bEnable         := TRUE,
+    bReset          := bResetAll,
+    bStart          := bStartAll,
+    bStop           := bStopAll,
+    fSetSpeed       := stMotor1Cfg.fNominalSpeed,
+    bMotorRun       := bM1_RunFeedback,
+    fActSpeed       := fM1_ActSpeed,
+    bOvertemp       := bM1_Overtemp,
+    bDriveError     := bM1_DriveError,
+    stConfig        := stMotor1Cfg,
+    // outputs
+    bRunCmd         => bM1_RunCmd,
+    fSpeedCmd       => fM1_SpeedCmd
+);
+
+// ── Motor 2 ────────────────────────────────────────────────────────────────
+fbMotor2(
+    bEnable         := TRUE,
+    bReset          := bResetAll,
+    bStart          := bStartAll,
+    bStop           := bStopAll,
+    fSetSpeed       := stMotor2Cfg.fNominalSpeed,
+    bMotorRun       := bM2_RunFeedback,
+    fActSpeed       := fM2_ActSpeed,
+    bOvertemp       := bM2_Overtemp,
+    bDriveError     := bM2_DriveError,
+    stConfig        := stMotor2Cfg,
+    // outputs
+    bRunCmd         => bM2_RunCmd,
+    fSpeedCmd       => fM2_SpeedCmd
+);
+
+// ── Status aggregation for HMI ─────────────────────────────────────────────
+bAllRunning := fbMotor1.bRunning AND fbMotor2.bRunning;
+bAnyError   := fbMotor1.bError   OR  fbMotor2.bError;]]></ST></Implementation>
+  </POU>
+</TcPlcObject>

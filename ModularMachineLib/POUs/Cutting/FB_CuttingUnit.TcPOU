@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_CuttingUnit" Id="{6BEFFF10-1AC6-4D1A-8A18-03D89CBFBFA2}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_CuttingUnit — Paper/material cutting unit state machine
+// Extends FB_StateMachine
+// Designed for rotary or linear cutting axes in paper processing machines
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_CuttingUnit EXTENDS FB_StateMachine
+VAR_INPUT
+    bStartCycle         : BOOL;             // Start a cut cycle
+    bAbort              : BOOL;             // Abort current cycle
+    fActPosition        : LREAL;            // Blade actual position [mm]
+    bBladeAtHome        : BOOL;             // Blade home sensor
+    bBladeAtCutPos      : BOOL;             // Blade at cut position sensor
+    bMaterialPresent    : BOOL;             // Material present sensor
+    stConfig            : ST_CuttingConfig;
+END_VAR
+VAR_OUTPUT
+    bCycleActive        : BOOL;             // Cut cycle in progress
+    bCycleComplete      : BOOL;             // Pulse: cycle finished successfully
+    bReadyForCycle      : BOOL;             // TRUE when ready to accept bStartCycle
+    fBladeSpeedCmd      : LREAL;            // Speed command to blade drive [mm/s]
+    bBladeRunCmd        : BOOL;             // Blade drive run command
+    nCycleCount         : UDINT;            // Total cut counter
+    nCyclesSinceService : UDINT;            // Cuts since last service reset
+    bServiceDue         : BOOL;             // Service interval reached
+END_VAR
+VAR
+    tonCutTimeout       : TON;
+    tonHomeTimeout      : TON;
+    bCycleCompletePulse : BOOL;
+    bStartCycleOld      : BOOL;
+END_VAR
+
+TYPE E_CutState :
+(
+    Homing      := 0,
+    ReadyAtHome := 1,
+    Cutting     := 2,
+    Returning   := 3,
+    CycleError  := 4
+) UDINT;
+END_TYPE
+VAR
+    eCutState : E_CutState;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[SUPER^.Execute();
+
+// ── Service counter ────────────────────────────────────────────────────────
+bServiceDue := (nCyclesSinceService >= stConfig.nCutsBeforeService);
+
+// ── Cycle complete pulse (one cycle only) ──────────────────────────────────
+bCycleComplete := bCycleCompletePulse;
+bCycleCompletePulse := FALSE;
+
+IF NOT bEnable THEN
+    bCycleActive    := FALSE;
+    bReadyForCycle  := FALSE;
+    bBladeRunCmd    := FALSE;
+    RETURN;
+END_IF
+
+CASE eCutState OF
+
+    E_CutState.Homing:
+        bCycleActive   := FALSE;
+        bReadyForCycle := FALSE;
+        bBladeRunCmd   := TRUE;
+        fBladeSpeedCmd := stConfig.fBladeSpeed * 0.3; // Slow homing speed
+        tonHomeTimeout(IN := TRUE, PT := stConfig.tHomeTimeout);
+        IF tonHomeTimeout.Q THEN
+            tonHomeTimeout(IN := FALSE);
+            SetError(GVL_ErrorCodes.CUT_HOME_TIMEOUT, 'Blade homing timeout');
+            eState    := E_MachineState.Error;
+            eCutState := E_CutState.CycleError;
+        ELSIF bBladeAtHome THEN
+            tonHomeTimeout(IN := FALSE);
+            bBladeRunCmd := FALSE;
+            eCutState    := E_CutState.ReadyAtHome;
+        END_IF
+
+    E_CutState.ReadyAtHome:
+        bCycleActive   := FALSE;
+        bReadyForCycle := TRUE;
+        bBladeRunCmd   := FALSE;
+        eState         := E_MachineState.Idle;
+        ClearError();
+        IF bStartCycle AND NOT bStartCycleOld AND bMaterialPresent THEN
+            eCutState := E_CutState.Cutting;
+            eState    := E_MachineState.Running;
+        END_IF
+
+    E_CutState.Cutting:
+        bCycleActive   := TRUE;
+        bReadyForCycle := FALSE;
+        bBladeRunCmd   := TRUE;
+        fBladeSpeedCmd := stConfig.fBladeSpeed;
+        tonCutTimeout(IN := TRUE, PT := stConfig.tCutTimeout);
+        IF tonCutTimeout.Q THEN
+            tonCutTimeout(IN := FALSE);
+            SetError(GVL_ErrorCodes.CUT_CYCLE_TIMEOUT, 'Cut cycle timeout');
+            eCutState := E_CutState.CycleError;
+        ELSIF bAbort THEN
+            tonCutTimeout(IN := FALSE);
+            eCutState := E_CutState.Returning;
+        ELSIF bBladeAtCutPos THEN
+            tonCutTimeout(IN := FALSE);
+            eCutState := E_CutState.Returning;
+        END_IF
+
+    E_CutState.Returning:
+        bCycleActive   := TRUE;
+        bReadyForCycle := FALSE;
+        bBladeRunCmd   := TRUE;
+        fBladeSpeedCmd := -(stConfig.fBladeSpeed * 0.8); // Return at 80% speed
+        IF bBladeAtHome THEN
+            bBladeRunCmd        := FALSE;
+            eCutState           := E_CutState.ReadyAtHome;
+            // Only count as complete if not aborted
+            IF NOT bAbort THEN
+                nCycleCount         := nCycleCount + 1;
+                nCyclesSinceService := nCyclesSinceService + 1;
+                bCycleCompletePulse := TRUE;
+            END_IF
+        END_IF
+
+    E_CutState.CycleError:
+        bCycleActive := FALSE;
+        bBladeRunCmd := FALSE;
+        eState       := E_MachineState.Error;
+        IF bReset THEN
+            eCutState := E_CutState.Homing;
+            ClearError();
+        END_IF
+
+END_CASE
+bStartCycleOld := bStartCycle;]]></ST></Implementation>
+  <Method Name="ResetServiceCounter" Id="{174D7E22-C5C0-4E79-9306-45E87EAC7685}">
+    <Declaration><![CDATA[METHOD ResetServiceCounter : BOOL
+VAR_INPUT
+END_VAR
+// Call after performing service to reset the service counter]]></Declaration>
+    <Implementation><ST><![CDATA[nCyclesSinceService := 0;
+ResetServiceCounter := TRUE;]]></ST></Implementation>
+  </Method>
+  <Method Name="GetCycleCount" Id="{2D751287-CEFA-4296-87FC-95E76D010BA2}">
+    <Declaration><![CDATA[METHOD GetCycleCount : UDINT
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetCycleCount := nCycleCount;]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

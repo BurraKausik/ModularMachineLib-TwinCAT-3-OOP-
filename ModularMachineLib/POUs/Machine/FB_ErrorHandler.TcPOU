@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ErrorHandler" Id="{205035CB-0E87-42F3-9AB4-CB0A8CBA81AC}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_ErrorHandler — Centralised error log with ring buffer
+// Implements I_ErrorHandler
+// Call Execute() cyclically. Use AddError() from any FB in the project.
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_ErrorHandler IMPLEMENTS I_ErrorHandler
+VAR_INPUT
+    bClearAll       : BOOL;     // Rising edge clears all errors
+    bAcknowledge    : BOOL;     // Rising edge acknowledges latest error
+END_VAR
+VAR_OUTPUT
+    bHasErrors      : BOOL;
+    bHasFatal       : BOOL;
+    nActiveErrors   : UDINT;
+    stLatestError   : ST_ErrorInfo;
+END_VAR
+VAR
+    aErrors         : ARRAY[0..31] OF ST_ErrorInfo; // Ring buffer (32 entries)
+    nWriteIdx       : UDINT;
+    nCount          : UDINT;
+    bClearOld       : BOOL;
+    bAckOld         : BOOL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[// ── Rising edge detection ──────────────────────────────────────────────────
+IF bClearAll AND NOT bClearOld THEN
+    ClearErrors();
+END_IF
+bClearOld := bClearAll;
+
+IF bAcknowledge AND NOT bAckOld THEN
+    IF nCount > 0 THEN
+        aErrors[nWriteIdx].bAcknowledged := TRUE;
+    END_IF
+END_IF
+bAckOld := bAcknowledge;
+
+// ── Update outputs ─────────────────────────────────────────────────────────
+bHasErrors    := nCount > 0;
+bHasFatal     := FALSE;
+nActiveErrors := nCount;
+
+VAR_TEMP
+    i : UDINT;
+END_VAR
+FOR i := 0 TO MIN(nCount, 31) DO
+    IF aErrors[i].bActive AND aErrors[i].eSeverity = E_Severity.Fatal THEN
+        bHasFatal := TRUE;
+    END_IF
+END_FOR
+
+IF nCount > 0 THEN
+    stLatestError := aErrors[nWriteIdx];
+END_IF]]></ST></Implementation>
+  <Method Name="AddError" Id="{3CEFE7DB-4544-4CC8-A0A9-7358A992DBA2}">
+    <Declaration><![CDATA[METHOD AddError : BOOL
+VAR_INPUT
+    nCode       : UDINT;
+    eSeverity   : E_Severity;
+    sMessage    : STRING(255);
+    sSource     : STRING(80);
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[nWriteIdx := (nWriteIdx + 1) MOD 32;
+aErrors[nWriteIdx].nCode         := nCode;
+aErrors[nWriteIdx].eSeverity     := eSeverity;
+aErrors[nWriteIdx].sMessage      := sMessage;
+aErrors[nWriteIdx].sSource       := sSource;
+aErrors[nWriteIdx].tTimestamp    := DT_TO_DT(NOW());
+aErrors[nWriteIdx].bActive       := TRUE;
+aErrors[nWriteIdx].bAcknowledged := FALSE;
+IF nCount < 32 THEN nCount := nCount + 1; END_IF
+AddError := TRUE;]]></ST></Implementation>
+  </Method>
+  <Method Name="ClearErrors" Id="{0761886E-CE85-4DF4-8630-A4AEC2327F09}">
+    <Declaration><![CDATA[METHOD ClearErrors : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[MEMSET(ADR(aErrors), 0, SIZEOF(aErrors));
+nCount    := 0;
+nWriteIdx := 0;
+ClearErrors := TRUE;]]></ST></Implementation>
+  </Method>
+  <Method Name="HasErrors" Id="{74A79B31-180B-4F9F-B84A-0152D52CBA79}">
+    <Declaration><![CDATA[METHOD HasErrors : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[HasErrors := nCount > 0;]]></ST></Implementation>
+  </Method>
+  <Method Name="HasFatal" Id="{0DFA9FEF-B12F-4A18-A858-E80270D7F244}">
+    <Declaration><![CDATA[METHOD HasFatal : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[HasFatal := bHasFatal;]]></ST></Implementation>
+  </Method>
+  <Method Name="GetError" Id="{F931CF3E-52CA-443C-B153-35448958DFEB}">
+    <Declaration><![CDATA[METHOD GetError : ST_ErrorInfo
+VAR_INPUT
+    nIndex : UDINT;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetError := aErrors[(nWriteIdx + 32 - nIndex) MOD 32];]]></ST></Implementation>
+  </Method>
+  <Method Name="GetCount" Id="{69E4A44F-0917-4B13-915E-54EA25F531D8}">
+    <Declaration><![CDATA[METHOD GetCount : UDINT
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[GetCount := nCount;]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

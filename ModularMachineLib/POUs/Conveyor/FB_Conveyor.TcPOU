@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Conveyor" Id="{0C55F70B-5422-4144-9DBB-B11A2AD903A2}" SpecialFunc="None">
+    <Declaration><![CDATA[// ============================================================================
+// FB_Conveyor — Conveyor belt control with state machine
+// Extends FB_StateMachine | Implements I_Conveyor
+//
+// Usage:
+//   fbConv(bEnable:=bEnabled, bStart:=bConvStart, bStop:=bConvStop,
+//          bBeltRunFeedback:=bDriveFeedback,
+//          fActSpeed:=fBeltSpeed,
+//          bProductSensor:=bSensor,
+//          bDownstreamFree:=bFreeSignal,
+//          stConfig:=stConvCfg);
+// ============================================================================
+{attribute 'hide_all_locals'}
+FUNCTION_BLOCK FB_Conveyor EXTENDS FB_StateMachine IMPLEMENTS I_Conveyor
+VAR_INPUT
+    bStart              : BOOL;
+    bStop               : BOOL;
+    fSetSpeed           : LREAL;            // 0 = use stConfig.fNominalSpeed
+    bBeltRunFeedback    : BOOL;             // Drive running feedback
+    fActSpeed           : LREAL;            // Actual belt speed [m/s]
+    bProductSensor      : BOOL;             // Product present on belt
+    bDownstreamFree     : BOOL;             // Downstream segment/station free
+    stConfig            : ST_ConveyorConfig;
+END_VAR
+VAR_OUTPUT
+    bRunCmd             : BOOL;
+    fSpeedCmd           : LREAL;
+    bRunning            : BOOL;
+    bBlocked            : BOOL;
+    bProductPresent     : BOOL;
+    eConvState          : E_ConveyorState;
+END_VAR
+VAR
+    tonStart            : TON;
+    tonStop             : TON;
+    tonBlocked          : TON;
+    fCmdSpeed           : LREAL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[SUPER^.Execute();
+
+// ── Mirror sensor to output ────────────────────────────────────────────────
+bProductPresent := bProductSensor;
+
+CASE eConvState OF
+
+    E_ConveyorState.Disabled:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        IF bEnable THEN
+            eConvState := E_ConveyorState.Idle;
+        END_IF
+
+    E_ConveyorState.Idle:
+        bRunCmd   := FALSE;
+        bRunning  := FALSE;
+        bBlocked  := FALSE;
+        ClearError();
+        IF NOT bEnable THEN
+            eConvState := E_ConveyorState.Disabled;
+        ELSIF bStart AND NOT bStop THEN
+            fCmdSpeed  := SEL(fSetSpeed > 0.0, stConfig.fNominalSpeed,
+                              MIN(fSetSpeed, stConfig.fMaxSpeed));
+            eConvState := E_ConveyorState.Starting;
+        END_IF
+
+    E_ConveyorState.Starting:
+        bRunCmd   := TRUE;
+        fSpeedCmd := fCmdSpeed;
+        tonStart(IN := TRUE, PT := stConfig.tStartTimeout);
+        IF tonStart.Q THEN
+            tonStart(IN := FALSE);
+            SetError(GVL_ErrorCodes.CONV_START_TIMEOUT,
+                     CONCAT('Conveyor start timeout: ', stConfig.sName));
+            eConvState := E_ConveyorState.Error;
+        ELSIF bBeltRunFeedback AND fActSpeed >= fCmdSpeed * 0.9 THEN
+            tonStart(IN := FALSE);
+            eConvState := E_ConveyorState.Running;
+        ELSIF bStop OR NOT bEnable THEN
+            tonStart(IN := FALSE);
+            eConvState := E_ConveyorState.Stopping;
+        END_IF
+
+    E_ConveyorState.Running:
+        bRunCmd  := TRUE;
+        bRunning := TRUE;
+        bBlocked := FALSE;
+        fSpeedCmd := fCmdSpeed;
+        IF bStop OR NOT bEnable THEN
+            eConvState := E_ConveyorState.Stopping;
+        ELSIF stConfig.bHasSensor AND NOT bDownstreamFree THEN
+            eConvState := E_ConveyorState.Blocked;
+        END_IF
+
+    E_ConveyorState.Blocked:
+        bRunCmd  := FALSE;   // Stop belt while blocked
+        bRunning := FALSE;
+        bBlocked := TRUE;
+        tonBlocked(IN := TRUE, PT := stConfig.tBlockedTimeout);
+        IF tonBlocked.Q THEN
+            tonBlocked(IN := FALSE);
+            SetError(GVL_ErrorCodes.CONV_BLOCKED_TIMEOUT,
+                     CONCAT('Conveyor blocked: ', stConfig.sName));
+            eConvState := E_ConveyorState.Error;
+        ELSIF bDownstreamFree THEN
+            tonBlocked(IN := FALSE);
+            eConvState := E_ConveyorState.Running;
+        ELSIF bStop OR NOT bEnable THEN
+            tonBlocked(IN := FALSE);
+            eConvState := E_ConveyorState.Stopping;
+        END_IF
+
+    E_ConveyorState.Stopping:
+        bRunCmd   := FALSE;
+        bRunning  := FALSE;
+        fSpeedCmd := 0.0;
+        tonStop(IN := TRUE, PT := stConfig.tStopTimeout);
+        IF tonStop.Q THEN
+            tonStop(IN := FALSE);
+            SetError(GVL_ErrorCodes.CONV_STOP_TIMEOUT,
+                     CONCAT('Conveyor stop timeout: ', stConfig.sName));
+            eConvState := E_ConveyorState.Error;
+        ELSIF NOT bBeltRunFeedback AND fActSpeed < 0.01 THEN
+            tonStop(IN := FALSE);
+            eConvState := E_ConveyorState.Idle;
+        END_IF
+
+    E_ConveyorState.Error:
+        bRunCmd  := FALSE;
+        bRunning := FALSE;
+        IF bReset THEN
+            eConvState := E_ConveyorState.Idle;
+        END_IF
+
+END_CASE
+
+// ── Sync base state ────────────────────────────────────────────────────────
+CASE eConvState OF
+    E_ConveyorState.Idle:       eState := E_MachineState.Idle;
+    E_ConveyorState.Starting,
+    E_ConveyorState.Running:    eState := E_MachineState.Running;
+    E_ConveyorState.Blocked,
+    E_ConveyorState.Stopping:   eState := E_MachineState.Paused;
+    E_ConveyorState.Error:      eState := E_MachineState.Error;
+    E_ConveyorState.Disabled:   eState := E_MachineState.Disabled;
+END_CASE]]></ST></Implementation>
+  <Method Name="Start" Id="{EB0D86A8-49C0-481A-965F-DD406C9D55B8}">
+    <Declaration><![CDATA[METHOD Start : BOOL
+VAR_INPUT
+    fSpeed : LREAL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[fSetSpeed := fSpeed;
+bStart := TRUE;
+Start  := (eConvState = E_ConveyorState.Running);]]></ST></Implementation>
+  </Method>
+  <Method Name="Stop" Id="{9D9918C4-FCAD-4EA2-B061-5D3D0D372EFD}">
+    <Declaration><![CDATA[METHOD Stop : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[bStop := TRUE;
+bStart := FALSE;
+Stop  := (eConvState = E_ConveyorState.Idle);]]></ST></Implementation>
+  </Method>
+  <Method Name="SetSpeed" Id="{5DCAFDD5-7F8F-43C9-9EAC-2D8BE9119EF2}">
+    <Declaration><![CDATA[METHOD SetSpeed : BOOL
+VAR_INPUT
+    fSpeed : LREAL;
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[fSetSpeed := MIN(fSpeed, stConfig.fMaxSpeed);
+fCmdSpeed := fSetSpeed;
+SetSpeed  := TRUE;]]></ST></Implementation>
+  </Method>
+  <Method Name="IsRunning" Id="{B160132D-5138-473F-89B6-3CBE1C932462}">
+    <Declaration><![CDATA[METHOD IsRunning : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IsRunning := bRunning;]]></ST></Implementation>
+  </Method>
+  <Method Name="IsBlocked" Id="{AEB4C736-CCC8-4658-B01F-A4282B369446}">
+    <Declaration><![CDATA[METHOD IsBlocked : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[IsBlocked := bBlocked;]]></ST></Implementation>
+  </Method>
+  <Method Name="ProductPresent" Id="{29360821-6604-4508-83E4-41A25AB62CE7}">
+    <Declaration><![CDATA[METHOD ProductPresent : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+    <Implementation><ST><![CDATA[ProductPresent := bProductSensor;]]></ST></Implementation>
+  </Method>
+  </POU>
+</TcPlcObject>

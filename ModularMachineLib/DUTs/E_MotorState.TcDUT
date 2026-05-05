@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="E_MotorState" Id="{567D7087-DDB0-4075-9E18-9CB581C6F452}">
+    <Declaration><![CDATA[
+{attribute 'qualified_only'}
+{attribute 'strict'}
+// Motor operating states used by FB_Motor and FB_Drive
+TYPE E_MotorState :
+(
+    Idle        := 0,   // Motor stopped, ready to start
+    Starting    := 1,   // Accelerating to setpoint speed
+    Running     := 2,   // Running at setpoint speed
+    Stopping    := 3,   // Decelerating to standstill
+    Error       := 4,   // Error detected — requires reset
+    Disabled    := 5    // bEnable = FALSE
+) UDINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

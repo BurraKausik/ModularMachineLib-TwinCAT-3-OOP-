@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="E_ConveyorState" Id="{03561EC4-8FDE-4F75-8861-FCF9BE206EB6}">
+    <Declaration><![CDATA[
+{attribute 'qualified_only'}
+{attribute 'strict'}
+// Conveyor belt operating states
+TYPE E_ConveyorState :
+(
+    Idle            := 0,   // Belt stopped, ready
+    Starting        := 1,   // Belt accelerating
+    Running         := 2,   // Belt running at setpoint
+    Stopping        := 3,   // Belt decelerating
+    WaitingProduct  := 4,   // Waiting for upstream product
+    Blocked         := 5,   // Downstream blocked
+    Error           := 6,   // Error state
+    Disabled        := 7    // Disabled
+) UDINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

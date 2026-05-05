@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_CuttingConfig" Id="{B4198338-F9A4-4A68-8569-66D34002EB06}">
+    <Declaration><![CDATA[
+// Configuration structure for FB_CuttingUnit
+TYPE ST_CuttingConfig :
+STRUCT
+    sName               : STRING(80)    := 'CuttingUnit';
+    fCutLength          : LREAL         := 100.0;           // Cut length [mm]
+    fCutLengthTolerance : LREAL         := 0.5;             // Tolerance [mm]
+    fBladeSpeed         : LREAL         := 200.0;           // Blade speed [mm/s]
+    tCutTimeout         : TIME          := T#5S;            // Max cut cycle time
+    tHomeTimeout        : TIME          := T#10S;           // Max homing time
+    nCutsBeforeService  : UDINT         := 50000;           // Service interval [cuts]
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

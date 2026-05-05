@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_ConveyorConfig" Id="{75C99B0B-2352-4293-939E-18B1FF5982E3}">
+    <Declaration><![CDATA[
+// Configuration structure for FB_Conveyor and FB_ConveyorSegment
+TYPE ST_ConveyorConfig :
+STRUCT
+    sName               : STRING(80)    := 'Conveyor';      // Display name
+    fNominalSpeed       : LREAL         := 0.5;             // Belt speed [m/s]
+    fMaxSpeed           : LREAL         := 2.0;             // Maximum belt speed [m/s]
+    fLength             : LREAL         := 1.0;             // Belt length [m]
+    fAccelRamp          : LREAL         := 0.2;             // Acceleration [m/s²]
+    fDecelRamp          : LREAL         := 0.3;             // Deceleration [m/s²]
+    tStartTimeout       : TIME          := T#5S;            // Start timeout
+    tStopTimeout        : TIME          := T#5S;            // Stop timeout
+    tBlockedTimeout     : TIME          := T#30S;           // Max blocked time before error
+    bBidirectional      : BOOL          := FALSE;           // Supports reverse direction
+    bHasSensor          : BOOL          := TRUE;            // Product sensor present
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
