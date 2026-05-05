@@ -1,2 +1,2 @@
-# ModularMachineLib-TwinCAT-3-OOP-
+# ModularMachineLib-TwinCAT-3-OOP
 General libraries for modern modular machines
